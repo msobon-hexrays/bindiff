@@ -22,7 +22,10 @@ jobs:
       versions: ${{ steps.get-versions.outputs.versions }}
     steps:
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
+        with:
+          ignore-empty-workdir: true
+          enable-cache: false
 
       - name: Discover available IDA versions
         id: get-versions
@@ -188,38 +191,39 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    name: release for IDA ${{ matrix.ida_version }}
-    strategy:
-      fail-fast: false
-      matrix:
-        ida_version: ${{ fromJson(needs.discover.outputs.versions) }}
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-          pattern: bindiff-ida${{ matrix.ida_version }}-*
-          merge-multiple: true
 
-      - name: Remove extras
+      - name: Create per-version archives
         shell: bash
         run: |
-          rm -f artifacts/bindiff artifacts/bindiff.exe
-          rm -f artifacts/bindiff_config_setup*
-          rm -f artifacts/bindiff_launcher_macos
+          versions='${{ needs.discover.outputs.versions }}'
+          for version in $(echo "$versions" | jq -r '.[]'); do
+            echo "Creating archive for IDA $version..."
+            mkdir -p "stage-${version}"
 
-      - name: Create archive
-        shell: bash
-        run: |
-          cd artifacts
-          zip -r ../bindiff-ida${{ matrix.ida_version }}.zip *
-          cd ..
-          mv bindiff-ida${{ matrix.ida_version }}.zip artifacts/
+            # Merge artifacts from all OSes for this version
+            for dir in artifacts/bindiff-ida${version}-*/; do
+              [ -d "$dir" ] && cp -v "$dir"/* "stage-${version}/"
+            done
+
+            # Remove non-plugin files
+            rm -f "stage-${version}/bindiff" "stage-${version}/bindiff.exe"
+            rm -f "stage-${version}"/bindiff_config_setup*
+            rm -f "stage-${version}"/bindiff_launcher_macos
+
+            cd "stage-${version}"
+            zip -r "../bindiff-ida${version}.zip" *
+            cd ..
+          done
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.zip
+          files: bindiff-ida*.zip
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
