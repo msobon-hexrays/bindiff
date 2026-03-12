@@ -91,7 +91,7 @@ jobs:
           uvx --from ida-hcli hcli --disable-updates download "$SDK_SLUG"
           unzip idasdk*.zip -d ./ida-temp/
 
-          SDK_ROOT=$(dirname "$(find ./ida-temp/ -maxdepth 3 -name makefile -print -quit)")
+          SDK_ROOT=$(dirname "$(find ./ida-temp/ -maxdepth 3 -name allmake.mak | head -1)")
           mv "$SDK_ROOT" ./ida-sdk
 
       - name: Setup IDA SDK environment
@@ -99,7 +99,7 @@ jobs:
         working-directory: ./ida-sdk/
         shell: cmd
         run: |
-          # via: https://hex-rays.com/blog/building-ida-python-on-windows
+          REM via: https://hex-rays.com/blog/building-ida-python-on-windows
           set __EA64__=1
           set NDEBUG=1
           make env
